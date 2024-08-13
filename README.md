@@ -57,8 +57,10 @@
 
 4. **Install Dependencies**
 
+   Manually install the required Python libraries using pip:
+
    ```bash
-   pip install -r requirements.txt
+   pip install flask mss pillow pytesseract
    ```
 
 5. **Install Additional Dependencies**
