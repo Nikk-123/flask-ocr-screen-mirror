@@ -6,10 +6,12 @@
 **Screen Mirroring with OCR** is a Flask-based web application that captures your screen, performs Optical Character Recognition (OCR) to extract text, and allows you to interact with the captured data. The application supports live screen mirroring, capturing screenshots, and extending pages for full-text extraction.
 
 
-![Screenshot (68)](https://github.com/user-attachments/assets/8a0d0ffa-413a-4d03-9023-77f136f5aca5)
-![image](https://github.com/user-attachments/assets/1f67bb4a-adab-4ae9-a5ef-61d7154ab3d8)
+
+![Screenshot (68)](https://github.com/user-attachments/assets/91f88f82-0059-474c-b1c6-68c3f9b4c33b)
+![Screenshot (69)](https://github.com/user-attachments/assets/aed691dd-5728-406e-a9d1-0075e81f3484)
 
 ## Features
+
 
 - **Live Screen Mirroring**: Stream your screen in real-time.
 - **OCR Integration**: Extract text from screenshots using OCR.
