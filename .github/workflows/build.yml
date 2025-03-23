@@ -55,7 +55,6 @@ jobs:
 
       - name: Verify Tesseract Installation
         run: |
-          # Verify PATH update in PowerShell
           Write-Output "Current PATH: $env:PATH"
           & "C:\Program Files\Tesseract-OCR\tesseract.exe" --version
         shell: powershell
@@ -75,10 +74,16 @@ jobs:
       - name: Get Latest Release Version
         id: get_version
         run: |
-          echo "Fetching latest release tag..."
-          $latest_tag=$(git describe --tags --abbrev=0 2>$null)
-          if (-not $latest_tag) { $latest_tag="v0.0.0" }
-          echo "Latest tag: $latest_tag"
+          Write-Output "Fetching latest release tag..."
+          try {
+            $latest_tag = git describe --tags --abbrev=0 2>$null
+          } catch {
+            $latest_tag = $null
+          }
+          if (-not $latest_tag) {
+            $latest_tag = "v0.0.0"
+          }
+          Write-Output "Latest tag: $latest_tag"
           
           # Increment version
           $versionParts = $latest_tag -split "\."
