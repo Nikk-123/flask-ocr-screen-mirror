@@ -6,11 +6,12 @@ permissions:
 on:
   push:
     branches:
-      - main  # Change this to your default branch if needed
+      - main  # Trigger on push to main branch
+  workflow_dispatch:  # Allow manual triggering
 
 jobs:
   build:
-    runs-on: windows-latest  # Runs on a Windows machine
+    runs-on: windows-latest  # Use Windows for .exe
 
     steps:
       - name: Checkout Repository
@@ -21,17 +22,24 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install Chocolatey
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+          iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+        shell: powershell
+
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          choco install tesseract --yes
+          pip install pyinstaller
+          choco install tesseract -y
         shell: powershell
 
       - name: Set Tesseract Path
         run: |
           echo "TESSERACT_PATH=C:\Program Files\Tesseract-OCR\tesseract.exe" >> $GITHUB_ENV
-          echo "Adding Tesseract to PATH..."
           echo "C:\Program Files\Tesseract-OCR" >> $GITHUB_PATH
         shell: powershell
 
@@ -39,9 +47,17 @@ jobs:
         run: tesseract --version
         shell: cmd
 
+      - name: Modify app.py with Tesseract Path
+        run: |
+          # Add Tesseract path to app.py for the executable
+          $content = Get-Content -Path app.py -Raw
+          $new_content = "import pytesseract`n" + "pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'`n" + $content
+          Set-Content -Path app.py -Value $new_content
+        shell: powershell
+
       - name: Build EXE with PyInstaller
         run: |
-          pyinstaller --onefile --noconsole --hidden-import pytesseract --add-data "C:/Program Files/Tesseract-OCR;tesseract-ocr" app.py
+          pyinstaller --onefile --noconsole --hidden-import pytesseract app.py
         shell: cmd
 
       - name: Get Latest Release Version
