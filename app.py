@@ -10,7 +10,7 @@ import os
 import signal
 from waitress import serve
 import requests
-
+import socket
 
 app = Flask(__name__)
 flask_thread = None
@@ -241,12 +241,15 @@ class API:
         flask_thread = threading.Thread(target=start_flask, daemon=True)
         flask_thread.start()
 
-        # Update status text to show the running URLs
-        webview.windows[0].evaluate_js("""
+        # Get the local IP address of the device
+        local_ip = socket.gethostbyname(socket.gethostname())
+
+        # Update status text to show the running URLs dynamically
+        webview.windows[0].evaluate_js(f"""
             document.getElementById('status').innerText = 'Status: ON - http://localhost:8080\\n'
             + 'Running on all addresses (0.0.0.0)\\n'
             + 'Running on http://127.0.0.1:8080\\n'
-            + 'Running on http://192.168.0.112:8080';
+            + 'Running on http://{local_ip}:8080';
         """)
 
     def stop(self):
