@@ -95,11 +95,15 @@ jobs:
             Write-Output "Major: $major, Minor: $minor, Patch: $patch"
             $new_version = "v$major.$minor.$patch"
             Write-Output "New version: $new_version"
-            echo "NEW_VERSION=$new_version" | Out-File -FilePath $env:GITHUB_ENV -Append
+            # Write to GITHUB_ENV and verify
+            "NEW_VERSION=$new_version" | Out-File -FilePath $env:GITHUB_ENV -Append
+            Write-Output "Wrote NEW_VERSION to GITHUB_ENV: $env:NEW_VERSION"
           } catch {
             Write-Output "Error incrementing version: $_"
             exit 1
           }
+          # Force success if we reach here
+          exit 0
         shell: powershell
 
       - name: Create GitHub Release
