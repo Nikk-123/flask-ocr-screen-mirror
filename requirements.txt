@@ -1,4 +1,7 @@
 Flask
 mss
-pillow
+Pillow
 pytesseract
+pywebview
+waitress
+requests
