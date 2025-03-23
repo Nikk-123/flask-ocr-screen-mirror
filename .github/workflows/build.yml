@@ -1,4 +1,4 @@
-name: Build & Release EXE
+name: Build & Release EXE with Tesseract
 
 on:
   push:
@@ -24,9 +24,21 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
+      - name: Install Tesseract OCR
+        run: |
+          choco install tesseract
+        shell: powershell
+
+      - name: Find Tesseract Path
+        id: find_tesseract
+        run: |
+          $tess_path = "C:\Program Files\Tesseract-OCR"
+          echo "TESS_PATH=$tess_path" >> $GITHUB_ENV
+        shell: powershell
+
       - name: Build EXE with PyInstaller
         run: |
-          pyinstaller --onefile --noconsole --hidden-import pytesseract --add-data "C:/Program Files/Tesseract-OCR;tesseract-ocr/" app.py
+          pyinstaller --onefile --noconsole --hidden-import pytesseract --add-data "${{ env.TESS_PATH }};tesseract-ocr/" app.py
         shell: cmd
 
       - name: Find Previous Release Version
