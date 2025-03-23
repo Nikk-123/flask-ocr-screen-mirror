@@ -1,10 +1,21 @@
+import sys
+import threading
 from flask import Flask, Response, render_template_string, jsonify, request
 import mss
 from PIL import Image
 import io
 import pytesseract
+import webview
+import os
+import signal
+from waitress import serve
+import requests
+
 
 app = Flask(__name__)
+flask_thread = None
+server_running = False
+
 
 # Store captured images
 captured_images = []
@@ -18,17 +29,12 @@ def generate_frames():
     with mss.mss() as sct:
         monitor = sct.monitors[1]  # Use the primary monitor; adjust as needed
         while True:
-            # Capture the screen
             img = sct.grab(monitor)
-            # Convert to PIL Image
             img = Image.frombytes('RGB', img.size, img.bgra, 'raw', 'BGRX')
-            # Save to a bytes buffer
             buffer = io.BytesIO()
             img.save(buffer, format='JPEG')
             buffer.seek(0)
-            # Perform OCR
             text = perform_ocr(img)
-            # Yield the frame and the captured text
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + buffer.read() + b'\r\n')
 
@@ -51,7 +57,6 @@ def extend_page():
     if not captured_images:
         return jsonify({"error": "No images captured"}), 400
     
-    # Stitch images together
     total_height = sum(img.size[1] for img in captured_images)
     max_width = max(img.size[0] for img in captured_images)
     stitched_image = Image.new('RGB', (max_width, total_height))
@@ -61,10 +66,7 @@ def extend_page():
         stitched_image.paste(img, (0, y_offset))
         y_offset += img.size[1]
     
-    # Perform OCR on the stitched image
     full_text = perform_ocr(stitched_image)
-    
-    # Clear captured images after processing
     captured_images.clear()
     
     return jsonify({"full_text": full_text}), 200
@@ -214,7 +216,6 @@ def index():
 
 @app.route('/ocr_text')
 def ocr_text():
-    # Capture a single frame for OCR
     with mss.mss() as sct:
         monitor = sct.monitors[1]
         img = sct.grab(monitor)
@@ -222,5 +223,83 @@ def ocr_text():
         text = perform_ocr(img)
         return text
 
+
+# Function to start Flask
+def start_flask():
+    global server_running
+    server_running = True
+    serve(app, host='0.0.0.0', port=8080, threads=8)  # Increase the number of threads
+
+
+# WebView API handlers
+class API:
+    def start(self):
+        global flask_thread
+        if server_running:
+            return  # If Flask is already running, do nothing
+
+        flask_thread = threading.Thread(target=start_flask, daemon=True)
+        flask_thread.start()
+
+        # Update status text to show the running URLs
+        webview.windows[0].evaluate_js("""
+            document.getElementById('status').innerText = 'Status: ON - http://localhost:8080\\n'
+            + 'Running on all addresses (0.0.0.0)\\n'
+            + 'Running on http://127.0.0.1:8080\\n'
+            + 'Running on http://192.168.0.112:8080';
+        """)
+
+    def stop(self):
+        global server_running
+        if not server_running:
+            return  # Already stopped
+
+        server_running = False  # Mark as stopped
+
+        # Kill the process running on port 8080
+        try:
+            if os.name == 'nt':  # Windows
+                os.system("netstat -ano | findstr :8080 | findstr LISTENING | for /F \"tokens=5\" %P in ('more') do TaskKill /PID %P /F")
+            else:  # Linux/Mac
+                os.system("fuser -k 8080/tcp")
+        except Exception as e:
+            print("Error stopping Flask:", e)
+
+        # Update UI
+        webview.windows[0].evaluate_js("""
+            document.getElementById('status').innerText = 'Status: OFF';
+        """)
+
+# Flask route to allow stopping the server
+@app.route('/shutdown', methods=['GET'])
+def shutdown():
+    global server_running
+    server_running = False
+    shutdown_func = request.environ.get('werkzeug.server.shutdown')
+    if shutdown_func:
+        shutdown_func()
+    return "Server shutting down..."
+
+# Function to create GUI
+def create_gui():
+    html = """
+    <html>
+    <head>
+        <style>
+            body { text-align: center; font-family: Arial, sans-serif; padding: 20px; }
+            button { padding: 10px 20px; font-size: 16px; margin: 10px; }
+        </style>
+    </head>
+    <body>
+        <h2>Screen Sharing with OCR</h2>
+        <button onclick="pywebview.api.start()">Start Screen Sharing</button>
+        <button onclick="pywebview.api.stop()">Stop</button>
+        <p id="status">Status: OFF</p>
+    </body>
+    </html>
+    """
+    webview.create_window("Screen Sharing App", html=html, js_api=API())
+    webview.start()
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    create_gui()
