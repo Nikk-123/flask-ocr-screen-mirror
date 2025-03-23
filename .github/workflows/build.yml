@@ -1,4 +1,7 @@
-name: Build & Release EXE with Tesseract
+name: Auto Release and Build EXE with Tesseract
+
+permissions:
+  contents: write
 
 on:
   push:
@@ -7,7 +10,7 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest  # Runs on Windows machine
+    runs-on: windows-latest  # Runs on a Windows machine
 
     steps:
       - name: Checkout Repository
@@ -18,34 +21,46 @@ jobs:
         with:
           python-version: "3.12"
 
-
       - name: Install Dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
-          choco install tesseract
+          choco install tesseract --yes
         shell: powershell
-        
-      
-      - name: Find Tesseract Path
+
+      - name: Set Tesseract Path
         run: |
-          echo "TESSERACT_PATH=C:\Program Files\Tesseract-OCR" >> $GITHUB_ENV
+          echo "TESSERACT_PATH=C:\Program Files\Tesseract-OCR\tesseract.exe" >> $GITHUB_ENV
+          echo "Adding Tesseract to PATH..."
+          echo "C:\Program Files\Tesseract-OCR" >> $GITHUB_PATH
         shell: powershell
-        
+
+      - name: Verify Tesseract Installation
+        run: tesseract --version
+        shell: cmd
+
       - name: Build EXE with PyInstaller
         run: |
           pyinstaller --onefile --noconsole --hidden-import pytesseract --add-data "C:/Program Files/Tesseract-OCR;tesseract-ocr" app.py
         shell: cmd
 
-      - name: Find Previous Release Version
+      - name: Get Latest Release Version
         id: get_version
         run: |
           echo "Fetching latest release tag..."
-          $latest_tag=$(git tag --sort=-v:refname | head -n 1)
-          if [ -z "$latest_tag" ]; then latest_tag="v0.0.0"; fi
+          $latest_tag=$(git describe --tags --abbrev=0 2>$null)
+          if (-not $latest_tag) { $latest_tag="v0.0.0" }
           echo "Latest tag: $latest_tag"
-          version=$(echo $latest_tag | awk -F. '{print $1"."$2"."$3+1}')
-          echo "NEW_VERSION=$version" >> $GITHUB_ENV
-        shell: bash
+          
+          # Increment version
+          $versionParts = $latest_tag -split "\."
+          $major = $versionParts[0] -replace "v", ""
+          $minor = $versionParts[1]
+          $patch = [int]$versionParts[2] + 1
+          
+          $new_version = "v$major.$minor.$patch"
+          echo "NEW_VERSION=$new_version" >> $GITHUB_ENV
+        shell: powershell
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
