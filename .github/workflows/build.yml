@@ -42,7 +42,7 @@ jobs:
           Write-Output "Checking Chocolatey installation..."
           choco --version
           Write-Output "Listing installed packages..."
-          choco list --local-only
+          choco list
           Write-Output "Checking Tesseract directory..."
           dir "C:\Program Files\Tesseract-OCR"
         shell: powershell
@@ -55,8 +55,10 @@ jobs:
 
       - name: Verify Tesseract Installation
         run: |
-          tesseract --version
-        shell: cmd
+          # Verify PATH update in PowerShell
+          Write-Output "Current PATH: $env:PATH"
+          & "C:\Program Files\Tesseract-OCR\tesseract.exe" --version
+        shell: powershell
 
       - name: Modify app.py with Tesseract Path
         run: |
