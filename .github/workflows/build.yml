@@ -85,14 +85,21 @@ jobs:
           }
           Write-Output "Latest tag: $latest_tag"
           
-          # Increment version
-          $versionParts = $latest_tag -split "\."
-          $major = $versionParts[0] -replace "v", ""
-          $minor = $versionParts[1]
-          $patch = [int]$versionParts[2] + 1
-          
-          $new_version = "v$major.$minor.$patch"
-          echo "NEW_VERSION=$new_version" >> $GITHUB_ENV
+          # Increment version with error handling
+          try {
+            $versionParts = $latest_tag -split "\."
+            Write-Output "Version parts: $versionParts"
+            $major = $versionParts[0] -replace "v", ""
+            $minor = $versionParts[1]
+            $patch = [int]$versionParts[2] + 1
+            Write-Output "Major: $major, Minor: $minor, Patch: $patch"
+            $new_version = "v$major.$minor.$patch"
+            Write-Output "New version: $new_version"
+            echo "NEW_VERSION=$new_version" | Out-File -FilePath $env:GITHUB_ENV -Append
+          } catch {
+            Write-Output "Error incrementing version: $_"
+            exit 1
+          }
         shell: powershell
 
       - name: Create GitHub Release
