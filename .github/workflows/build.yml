@@ -1,0 +1,118 @@
+name: Auto Release and Build EXE with Tesseract
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install Chocolatey
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+          iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+        shell: powershell
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+          choco install tesseract -y --force
+        shell: powershell
+
+      - name: Debug Tesseract Installation
+        run: |
+          Write-Output "Checking Chocolatey installation..."
+          choco --version
+          Write-Output "Listing installed packages..."
+          choco list
+          Write-Output "Checking Tesseract directory..."
+          dir "C:\Program Files\Tesseract-OCR"
+        shell: powershell
+
+      - name: Set Tesseract Path
+        run: |
+          echo "TESSERACT_PATH=C:\Program Files\Tesseract-OCR\tesseract.exe" >> $GITHUB_ENV
+          echo "C:\Program Files\Tesseract-OCR" >> $GITHUB_PATH
+        shell: powershell
+
+      - name: Verify Tesseract Installation
+        run: |
+          Write-Output "Current PATH: $env:PATH"
+          & "C:\Program Files\Tesseract-OCR\tesseract.exe" --version
+        shell: powershell
+
+      - name: Modify app.py with Tesseract Path
+        run: |
+          $content = Get-Content -Path app.py -Raw
+          $new_content = "import pytesseract`n" + "pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'`n" + $content
+          Set-Content -Path app.py -Value $new_content
+        shell: powershell
+
+      - name: Build EXE with PyInstaller
+        run: |
+          pyinstaller --onefile --noconsole --hidden-import pytesseract app.py
+        shell: cmd
+
+      - name: Get Latest Release Version
+        id: get_version
+        run: |
+          Write-Output "Fetching latest release tag..."
+          try {
+            $latest_tag = git describe --tags --abbrev=0 2>$null
+          } catch {
+            $latest_tag = $null
+          }
+          if (-not $latest_tag) {
+            $latest_tag = "v0.0.0"
+          }
+          Write-Output "Latest tag: $latest_tag"
+          
+          # Increment version with error handling
+          try {
+            $versionParts = $latest_tag -split "\."
+            Write-Output "Version parts: $versionParts"
+            $major = $versionParts[0] -replace "v", ""
+            $minor = $versionParts[1]
+            $patch = [int]$versionParts[2] + 1
+            Write-Output "Major: $major, Minor: $minor, Patch: $patch"
+            $new_version = "v$major.$minor.$patch"
+            Write-Output "New version: $new_version"
+            # Write to GITHUB_ENV and verify
+            "NEW_VERSION=$new_version" | Out-File -FilePath $env:GITHUB_ENV -Append
+            Write-Output "Wrote NEW_VERSION to GITHUB_ENV: $env:NEW_VERSION"
+          } catch {
+            Write-Output "Error incrementing version: $_"
+            exit 1
+          }
+          # Force success if we reach here
+          exit 0
+        shell: powershell
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.NEW_VERSION }}
+          release_name: Release ${{ env.NEW_VERSION }}
+          draft: false
+          prerelease: false
+          files: dist/app.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
